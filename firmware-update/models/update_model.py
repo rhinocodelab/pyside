@@ -6,7 +6,6 @@ class UpdateModel:
     def __init__(self):
         """Initialize the model with database connection"""
         self.db_manager = DatabaseManager()
-        self.db_manager.initialize_database()
     
     def get_settings(self):
         """Get all settings from the database"""
@@ -61,21 +60,29 @@ class UpdateModel:
             return settings.get('UpgFilepath', '')
         return ''
     
+    def get_md5sum(self, checksum: str):
+        """Get the MD5SUM for a given checksum"""
+        settings = self.db_manager.get_md5sum(checksum)
+        if settings:
+            return settings.get('md5sum', '')
+        return ''
+    
+
     def save_update_on_boot(self, update_on_boot):
         """Save the UpdateOnBoot setting to the database"""
-        return self.db_manager.save_update_settings({'UpdateOnBoot': update_on_boot})
+        return self.db_manager.save_update_settings({'update_on_boot': update_on_boot})
     
     def save_auto_update(self, auto_update):
         """Save the AutoUpdate setting to the database"""
-        return self.db_manager.save_update_settings({'AutoUpdate': auto_update})
+        return self.db_manager.save_update_settings({'auto_update': auto_update})
     
     def save_update_method(self, method):
         """Save the UpdateMethod setting to the database"""
-        return self.db_manager.save_update_settings({'Method': method})
+        return self.db_manager.save_update_settings({'update_method': method})
     
     def save_server_url(self, server_url):
         """Save the server URL to the database"""
-        return self.db_manager.save_update_settings({'IP': server_url})
+        return self.db_manager.save_update_settings({'server_url': server_url})
     
     def save_username(self, username):
         """Save the username to the database"""
