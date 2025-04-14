@@ -4,6 +4,7 @@ from processes.verification.network_verifier import NetworkVerifier
 from processes.verification.metadata_patchcx_verifier import MetadataPatchCXVerifier
 from utils.logger import Logger
 from utils.uncorrupt import FileRestorer
+from utils.validate_server import ValidateServer
 import subprocess
 import os
 import shutil
@@ -26,6 +27,7 @@ class HTTPHandler(NetworkProtocolHandler):
         self.verifier = NetworkVerifier()
         self.metadata_verifier = MetadataPatchCXVerifier()
         self.logger = Logger()
+        self.validate_server = ValidateServer()
     
     def execute_update(self, settings: NetworkSettings) -> Tuple[bool, str]:
         """
@@ -38,10 +40,22 @@ class HTTPHandler(NetworkProtocolHandler):
             ValueError: If validation fails
         """
         # First validate all fields
-        is_valid, error_message = self.validate_settings(settings)
+        # Validate server URL
+        is_valid, error_message = self.validate_server.validate_server(settings.server_url)
         if not is_valid:
             return False, error_message
-            
+        
+        # Validate firmware path
+        is_valid, error_message = self.validate_server.validate_upgrade_path(settings.firmware_path)
+        if not is_valid:
+            return False, error_message
+        
+        # Validate username and password if provided
+        if settings.username and settings.password:
+            is_valid, error_message = self.validate_server.validate_username(settings.username, settings.password)
+            if not is_valid:
+                return False, error_message
+        
         # Set protocol based on security setting
         protocol = "https" if self.is_secure else "http"
         
@@ -67,76 +81,13 @@ class HTTPHandler(NetworkProtocolHandler):
         # Final URL
         final_url = f"{server_url}/{settings.firmware_path}"
         
-        # Check network connectivity first
-        try:
-            # Extract host from URL, handling both IP addresses and hostnames
-            host = server_url.split("://")[1].split("/")[0]
-            if "@" in host:  # Handle URLs with credentials
-                host = host.split("@")[1]
-            if ":" in host:  # Handle URLs with ports
-                host = host.split(":")[0]
-            
-            # Try to resolve hostname if it's not an IP address
-            try:
-                if not self._is_valid_ip(host):
-                    self.logger.info(f"Resolving hostname: {host}")
-                    try:
-                        # Try to resolve the hostname
-                        host_ip = socket.gethostbyname(host)
-                        self.logger.info(f"Resolved to IP: {host_ip}")
-                        
-                        # Verify the resolution worked
-                        if not host_ip:
-                            return False, f"Could not resolve hostname '{host}' to an IP address"
-                            
-                        # Try reverse DNS lookup to verify
-                        try:
-                            reverse_host = socket.gethostbyaddr(host_ip)[0]
-                            self.logger.info(f"Reverse DNS lookup: {host_ip} -> {reverse_host}")
-                        except socket.herror:
-                            self.logger.warning(f"Reverse DNS lookup failed for {host_ip}")
-                            
-                    except socket.gaierror as e:
-                        error_msg = str(e)
-                        if "Name or service not known" in error_msg:
-                            return False, f"Hostname '{host}' could not be resolved. Please check:\n" \
-                                        f"1. The hostname is correct\n" \
-                                        f"2. DNS is properly configured\n" \
-                                        f"3. The hostname is reachable from this network"
-                        elif "No such host" in error_msg:
-                            return False, f"Host '{host}' does not exist. Please check the hostname."
-                        else:
-                            return False, f"DNS resolution error for '{host}': {error_msg}"
-            except Exception as e:
-                self.logger.error(f"Hostname resolution error: {e}")
-                return False, f"Error resolving hostname '{host}': {str(e)}"
-            
-            port = 443 if self.is_secure else 80
-            
-            # Try to establish a TCP connection
-            self.logger.info(f"Attempting to connect to {host}:{port}")
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)  # 5 seconds timeout
-            result = sock.connect_ex((host, port))
-            sock.close()
-            
-            if result != 0:
-                return False, f"Could not connect to {host}:{port}. Please check if:\n" \
-                            f"1. The server is running\n" \
-                            f"2. The port {port} is open\n" \
-                            f"3. There are no firewall rules blocking the connection\n" \
-                            f"4. The network route to {host} is correct"
-        except Exception as e:
-            self.logger.error(f"Network connectivity check failed: {e}")
-            return False, f"Network connectivity check failed: {e}"
-        
         # Verify connection and SSL certificate in case of HTTPS
         if self.is_secure:
             # Check if we're using an IP address
-            is_ip_address = self._is_valid_ip(host)
+            is_ip_address, error_message = self.validate_server.validate_server(server_url)
             
             if is_ip_address:
-                self.logger.info(f"Using IP address for HTTPS: {host}. Disabling hostname verification.")
+                self.logger.info(f"Using IP address for HTTPS: {server_url}. Disabling hostname verification.")
                 # For IP addresses, we need to modify the verification process
                 # This will be handled in the NetworkVerifier class
                 is_valid, error_message = self.verifier.verify_ssl_certificate_ip(final_url)
@@ -316,18 +267,4 @@ class HTTPHandler(NetworkProtocolHandler):
         
         return True, "Cleanup completed successfully"
 
-    def _is_valid_ip(self, ip: str) -> bool:
-        """
-        Check if a string is a valid IP address
-        
-        Args:
-            ip: String to check
-            
-        Returns:
-            bool: True if valid IP address, False otherwise
-        """
-        try:
-            socket.inet_aton(ip)
-            return True
-        except socket.error:
-            return False
+  
