@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 class Logger:
     """
     Logger class for handling application logging.
-    Logs are written to /var/log/py-firmware-update.log with proper timestamps.
+    Logs are written to /var/log/firmware-update.log with proper timestamps.
     """
     _instance = None
     _initialized = False
@@ -22,12 +22,12 @@ class Logger:
             self.logger.setLevel(logging.DEBUG)
 
             # Create log directory if it doesn't exist
-            log_dir = './logs'
+            log_dir = '/var/log/'
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir, exist_ok=True)
 
             # Set up file handler with rotation
-            log_file = os.path.join(log_dir, 'py-firmware-update.log')
+            log_file = os.path.join(log_dir, 'firmware-update.log')
             file_handler = RotatingFileHandler(
                 log_file,
                 maxBytes=10*1024*1024,  # 10MB
