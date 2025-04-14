@@ -40,7 +40,7 @@ class MetadataPatchCXVerifier:
             self.logger.info(f"Response code: {response_code}")
             # Close the connection
             curl.close()
-            # Check if the response code is 200
+            # Check the response codes
             if response_code not in [200, 201, 206]:
                 self.logger.error(f"Failed to download metadata from {url}")
                 return False, f"Failed to download metadata from {url}"

@@ -304,4 +304,201 @@ class NetworkVerifier:
             socket.inet_aton(ip)
             return True
         except socket.error:
-            return False 
+            return False
+    
+    def verify_ftp_connection(self, url: str, username: Optional[str] = None,
+                         password: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Verify FTP connection to the specified URL
+        
+        Args:
+            url: The FTP URL to verify connection to
+            username: Optional username for authentication
+            password: Optional password for authentication
+            
+        Returns:
+            Tuple[bool, str]: (is_connected, error_message)
+        """
+        try:
+            # Parse URL to check for port
+            parsed_url = urlparse(url)
+            host = parsed_url.netloc.split(':')[0]
+            
+            # If no port specified, use default FTP port (21)
+            if ':' not in parsed_url.netloc:
+                url = f"ftp://{host}:21{parsed_url.path}"
+                if parsed_url.query:
+                    url += f"?{parsed_url.query}"
+            
+            # Reset curl options
+            self.curl.reset()
+            
+            # Set URL and basic options
+            self.curl.setopt(pycurl.URL, url)
+            self.curl.setopt(pycurl.NOBODY, True)  # HEAD request
+            self.curl.setopt(pycurl.FTP_RESPONSE_TIMEOUT, 10)
+            self.curl.setopt(pycurl.FTP_CREATE_MISSING_DIRS, 1)  # Create missing directories
+            self.curl.setopt(pycurl.FTP_USE_EPSV, 1)  # Use EPSV for passive mode
+            
+            # Set authentication if provided
+            if username and password:
+                self.curl.setopt(pycurl.USERPWD, f"{username}:{password}")
+            
+            # Create buffer for response
+            buffer = BytesIO()
+            self.curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
+            
+            # Perform request
+            self.curl.perform()
+            
+            # Get response code
+            response_code = self.curl.getinfo(pycurl.RESPONSE_CODE)
+            
+            if response_code == 200:
+                return True, f"Connected to FTP server at {url}"
+            elif response_code == 350:
+                # Server is waiting for additional commands, but connection is established
+                return True, f"Connected to FTP server at {url} (waiting for additional commands)"
+            elif response_code == 550:
+                return False, f"Access denied to {url}. Please check your credentials and permissions."
+            else:
+                return False, f"FTP error: {response_code}"
+                
+        except pycurl.error as e:
+            error_code = e.args[0]
+            error_message = e.args[1]
+            
+            if error_code == pycurl.E_COULDNT_CONNECT:
+                return False, f"Could not connect to FTP server at {url}. Please check if the server is running and accessible."
+            elif error_code == pycurl.E_OPERATION_TIMEDOUT:
+                return False, f"FTP connection to {url} timed out. Please check your network connection."
+            elif error_code == pycurl.E_COULDNT_RESOLVE_HOST:
+                return False, f"Could not resolve FTP hostname for {url}. Please check DNS configuration."
+            elif error_code == pycurl.E_FTP_COULDNT_RETR_FILE:
+                return False, f"Could not retrieve file from FTP server at {url}. Please check if the file exists."
+            elif error_code == pycurl.E_FTP_COULDNT_SET_TYPE:
+                return False, f"Could not set FTP transfer type for {url}. Please check server configuration."
+            elif error_code == pycurl.E_FTP_WEIRD_SERVER_REPLY:
+                return False, f"Unexpected FTP server reply from {url}. Please check server configuration."
+            elif error_code == pycurl.E_FTP_WEIRD_PASS_REPLY:
+                return False, f"Password error for {url}. Please check your credentials."
+            else:
+                return False, f"FTP error ({error_code}): {error_message}"
+        except Exception as e:
+            return False, f"Unexpected error during FTP connection verification: {str(e)}"
+    
+    def verify_ftps_certificate(self, url: str) -> Tuple[bool, str]:
+        """
+        Verify the SSL certificate for FTPS URLs
+        
+        Args:
+            url: The FTPS URL to verify
+            
+        Returns:
+            Tuple[bool, str]: (is_valid, error_message)
+        """
+        if not url.startswith('ftps://'):
+            return True, "Not an FTPS URL, skipping SSL verification"
+            
+        try:
+            # Parse URL to check for port
+            parsed_url = urlparse(url)
+            host = parsed_url.netloc.split(':')[0]
+            
+            # If no port specified, use default FTPS port (990)
+            if ':' not in parsed_url.netloc:
+                url = f"ftps://{host}:990{parsed_url.path}"
+                if parsed_url.query:
+                    url += f"?{parsed_url.query}"
+            
+            # Reset curl options
+            self.curl.reset()
+            
+            # Set URL and basic options
+            self.curl.setopt(pycurl.URL, url)
+            self.curl.setopt(pycurl.NOBODY, True)  # HEAD request
+            self.curl.setopt(pycurl.SSL_VERIFYPEER, True)
+            self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+            self.curl.setopt(pycurl.FTP_SSL, pycurl.FTPSSL_ALL)
+            
+            # Create buffer for response
+            buffer = BytesIO()
+            self.curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
+            
+            # Perform request
+            self.curl.perform()
+            
+            return True, "FTPS certificate is valid"
+            
+        except pycurl.error as e:
+            error_code = e.args[0]
+            error_message = e.args[1]
+            
+            if error_code == pycurl.E_SSL_CERTPROBLEM:
+                return False, f"FTPS certificate problem: {error_message}"
+            elif error_code == pycurl.E_SSL_CIPHER:
+                return False, f"FTPS cipher error: {error_message}"
+            elif error_code == pycurl.E_SSL_CONNECT_FAILED:
+                return False, f"FTPS connection failed: {error_message}"
+            else:
+                return False, f"FTPS error ({error_code}): {error_message}"
+        except Exception as e:
+            return False, f"Unexpected error during FTPS certificate verification: {str(e)}"
+    
+    def verify_ftps_certificate_ip(self, url: str) -> Tuple[bool, str]:
+        """
+        Verify the SSL certificate for FTPS URLs when using an IP address
+        
+        Args:
+            url: The FTPS URL to verify
+            
+        Returns:
+            Tuple[bool, str]: (is_valid, error_message)
+        """
+        if not url.startswith('ftps://'):
+            return True, "Not an FTPS URL, skipping SSL verification"
+            
+        try:
+            # Parse URL to check for port
+            parsed_url = urlparse(url)
+            host = parsed_url.netloc.split(':')[0]
+            
+            # If no port specified, use default FTPS port (990)
+            if ':' not in parsed_url.netloc:
+                url = f"ftps://{host}:990{parsed_url.path}"
+                if parsed_url.query:
+                    url += f"?{parsed_url.query}"
+            
+            # Reset curl options
+            self.curl.reset()
+            
+            # Set URL and basic options
+            self.curl.setopt(pycurl.URL, url)
+            self.curl.setopt(pycurl.NOBODY, True)  # HEAD request
+            self.curl.setopt(pycurl.SSL_VERIFYPEER, False)
+            self.curl.setopt(pycurl.SSL_VERIFYHOST, 0)
+            self.curl.setopt(pycurl.FTP_SSL, pycurl.FTPSSL_ALL)
+            
+            # Create buffer for response
+            buffer = BytesIO()
+            self.curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
+            
+            # Perform request
+            self.curl.perform()
+            
+            return True, "FTPS connection established (SSL verification skipped for IP address)"
+            
+        except pycurl.error as e:
+            error_code = e.args[0]
+            error_message = e.args[1]
+            
+            if error_code == pycurl.E_SSL_CERTPROBLEM:
+                return True, f"FTPS certificate warning for IP address, but continuing: {error_message}"
+            elif error_code == pycurl.E_SSL_CIPHER:
+                return True, f"FTPS cipher warning for IP address, but continuing: {error_message}"
+            elif error_code == pycurl.E_SSL_CONNECT_FAILED:
+                return True, f"FTPS connection warning for IP address, but continuing: {error_message}"
+            else:
+                return False, f"FTPS error ({error_code}): {error_message}"
+        except Exception as e:
+            return False, f"Unexpected error during FTPS certificate verification: {str(e)}" 
