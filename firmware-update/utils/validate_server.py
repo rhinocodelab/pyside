@@ -34,10 +34,10 @@ class ValidateServer:
         ipv6_regex = r'^(\[([0-9a-fA-F:]+)\])?(?::(\d{1,5}))?$'
 
         # FQDN regex - must start with alphanumeric, no @ symbol allowed
-        fqdn_regex = r'^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::\d{1,5})?$'
+        fqdn_regex = r'^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?::(\d{1,5}))?$'
         
-        # Simple hostname regex - must start with alphanumeric
-        hostname_regex = r'^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(?::\d{1,5})?$'
+        # Hostname regex - handles both standard and local hostnames (like "Nilesh-PC")
+        hostname_regex = r'^([a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]|[a-zA-Z0-9])(?::(\d{1,5}))?$'
 
         # Check if it's an IPv4 address with optional port
         ipv4_match = re.match(ipv4_regex, server_address)
@@ -108,7 +108,7 @@ class ValidateServer:
         hostname_match = re.match(hostname_regex, server_address)
         if hostname_match:
             hostname = hostname_match.group(1)
-            port = hostname_match.group(3)
+            port = hostname_match.group(2)
             
             # Validate port if present
             if port:
