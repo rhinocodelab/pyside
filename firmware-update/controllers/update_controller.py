@@ -5,6 +5,7 @@ from models.update_model import UpdateModel
 from utils.logger import Logger
 from processes.protocols import ProtocolFactory, NetworkSettings
 
+
 class UpdateController:
     def __init__(self, view, model):
         self.view = view
@@ -106,6 +107,9 @@ class UpdateController:
     
     def _on_save_update_clicked(self):
         """Handle Save & Update button click"""
+        # Show loading animation immediately
+        self.view.show_loading(True)
+        
         self.logger.info("Save & Update clicked")
         # Get the current text of the ComboBox
         method_text = self.view.ui.CB_Method.currentText()
@@ -131,9 +135,12 @@ class UpdateController:
                 )
                 
                 # Execute update process - this will handle all validations
-                handler.execute_update(settings)
-                # Copy the update files to the target directory
-                handler.copy_update_files()
+                is_success, message = handler.execute_update(settings)
+                if not is_success:
+                    raise ValueError(message)
+                else:
+                    self.logger.info(f"Update process completed successfully: {message}")
+                    self.view.show_success(message)
             except ValueError as e:
                 # Show validation errors
                 self.logger.error(str(e))
@@ -142,8 +149,14 @@ class UpdateController:
                 # Show other errors
                 self.logger.error(f"Update process failed: {str(e)}")
                 self.view.show_error(f"Update process failed: {str(e)}")
+            finally:
+                # Hide loading animation
+                self.view.show_loading(False)
         else:
-            print(f"Method {method_text} not implemented yet")
+            self.logger.error(f"Method {method_text} not implemented yet")
+            self.view.show_error(f"Method {method_text} not implemented yet")
+            # Hide loading animation
+            self.view.show_loading(False)
     
     def _save_settings(self):
         print("Saving settings...")
