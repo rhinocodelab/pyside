@@ -2,6 +2,7 @@
 
 from PySide6.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox
 from PySide6.QtCore import Slot, Qt
+from PySide6.QtGui import QMovie
 from ui.updatedialog import Ui_UpdateDialog
 
 import os
@@ -12,6 +13,13 @@ class MainView(QDialog):
         self.ui = Ui_UpdateDialog()
         self.ui.setupUi(self)
         
+        # Initialize loading animation
+        self.loading_movie = QMovie("resources/images/loading.gif")
+        self.ui.LB_ShowText.setMovie(self.loading_movie)
+        
+        # Hide LB_ShowText initially
+        self.ui.LB_ShowText.setVisible(False)
+
         # Disable the Maximize Button from window
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # Load the stylesheet
@@ -259,3 +267,12 @@ class MainView(QDialog):
             self._show_radio_buttons()
         else:
             self._hide_radio_buttons()
+
+    def show_loading(self, show: bool = True):
+        """Show or hide the loading animation"""
+        if show:
+            self.ui.LB_ShowText.setVisible(True)
+            self.loading_movie.start()
+        else:
+            self.loading_movie.stop()
+            self.ui.LB_ShowText.setVisible(False)
