@@ -5,13 +5,17 @@ from typing import Optional, Tuple
 from utils.logger import Logger
 import tarfile
 import hashlib
+from models.update_model import UpdateModel
+
 class MetadataPatchCXVerifier:
     def __init__(self):
         self.logger = Logger()
+        self.update_model = UpdateModel()
     
     def verify_metadata(self, url: str, username: Optional[str] = None, password: Optional[str] = None) -> Tuple[bool, str]:
         """
-            The metadata.json file is expected to be at the root of the Upgrade file which will be always a tar.bz2 file with or without extention.
+            The metadata.json file is expected to be at the root of the Upgrade file which 
+            will be always a tar.bz2 file with or without extention.
             Try to extact only the metadata.json file from the tar.bz2 file
         """
         try:
@@ -60,7 +64,11 @@ class MetadataPatchCXVerifier:
                         if missing_keys:
                             self.logger.error(f"Missing required keys in metadata: {missing_keys}")
                             return False, f"Missing required keys in metadata: {missing_keys}"
-                        ## Check if the checksum exists in the database
+                        ## Check if the checksum exists in the database, if it does then it is a Duplicate Patch
+                        md5sum = self.update_model.get_md5sum(metadata_json['checksum'])
+                        if md5sum:
+                            self.logger.info(f"Duplicate Patch: {md5sum['patch_name']}")
+                            return False, f"Duplicate Patch: {md5sum['patch_name']}"
                         
                         # Extract the metadata.json file to /tmp/metadata.json
                         tmp_path = "/tmp/metadata.json"
@@ -80,7 +88,8 @@ class MetadataPatchCXVerifier:
                 else:
                     self.logger.error(f"metadata.json file not found in {url}")
                     return False, f"metadata.json file not found in {url}"
-        except (pycurl.error, tarfile.error, json.JSONDecodeError, IOError) as e:
+        except (pycurl.error, tarfile.TarError, json.JSONDecodeError) as e:
+            self.logger.error(f"Error verifying metadata: {e}")
             return False, f"Error verifying metadata: {e}"
         
 
