@@ -109,6 +109,7 @@ class UpdateController:
         """Handle Save & Update button click"""
         # Show loading animation immediately
         self.view.show_loading(True)
+
         
         self.logger.info("Save & Update clicked")
         # Get the current text of the ComboBox
@@ -139,6 +140,44 @@ class UpdateController:
                 if not is_success:
                     raise ValueError(message)
                 else:
+                    # Save the settings in the database
+                    self._save_settings()
+                    self.logger.info(f"Update process completed successfully: {message}")
+                    self.view.show_success(message)
+            except ValueError as e:
+                # Show validation errors
+                self.logger.error(str(e))
+                self.view.show_error(str(e))
+            except Exception as e:
+                # Show other errors
+                self.logger.error(f"Update process failed: {str(e)}")
+                self.view.show_error(f"Update process failed: {str(e)}")
+            finally:
+                # Hide loading animation
+                self.view.show_loading(False)
+        elif method_text.upper() in ["FTP", "FTPS"]:
+            try:
+                # Get FTP handler from factory
+                handler = ProtocolFactory.get_handler(method_text)
+                if not handler:
+                    self.logger.error(f"Unsupported update method: {method_text}")
+                    self.view.show_error(f"Unsupported update method: {method_text}")
+                    return
+                # Create settings object with values from UI
+                settings = NetworkSettings(
+                    server_url=self.view.ui.LE_IP.text().strip(),
+                    username=self.view.ui.LE_Username.text().strip(),
+                    password=self.view.ui.LE_Password.text().strip(),
+                    firmware_path=self.view.ui.LE_UpgFilename.text().strip(),
+                    is_secure=False  # FTP is not secure
+                )
+                # Execute update process - this will handle all validations
+                is_success, message = handler.execute_update(settings)
+                if not is_success:
+                    raise ValueError(message)
+                else:
+                    # Save the settings in the database
+                    self._save_settings()
                     self.logger.info(f"Update process completed successfully: {message}")
                     self.view.show_success(message)
             except ValueError as e:

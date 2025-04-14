@@ -158,7 +158,11 @@ class NetworkVerifier:
             elif error_code == pycurl.E_COULDNT_RESOLVE_HOST:
                 return False, f"Could not resolve hostname for {url}. Please check DNS configuration."
             elif error_code == pycurl.E_SSL_CONNECT_FAILED:
-                return False, f"SSL connection failed for {url}. Please check SSL configuration."
+                # Only skip SSL verification for HTTPS with IP addresses
+                if url.startswith('https://') and self._is_valid_ip(urlparse(url).netloc.split(':')[0]):
+                    return True, f"SSL connection warning for IP address with HTTPS, but continuing anyway."
+                else:
+                    return False, f"SSL connection failed for {url}. Please check SSL configuration."
             else:
                 return False, f"PyCURL error ({error_code}): {error_message}"
         except Exception as e:
@@ -260,15 +264,29 @@ class NetworkVerifier:
             error_message = e.args[1]
             
             if error_code == pycurl.E_SSL_CERTPROBLEM:
-                # For IP addresses, we ignore SSL errors
-                return True, f"SSL certificate verification skipped for IP address: {url}"
+                # Only skip SSL verification for HTTPS with IP addresses
+                if url.startswith('https://') and self._is_valid_ip(urlparse(url).netloc.split(':')[0]):
+                    return True, f"SSL certificate verification skipped for IP address with HTTPS: {url}"
+                else:
+                    return False, f"SSL certificate error: {error_message}"
             elif error_code == pycurl.E_SSL_CIPHER:
-                # For IP addresses, we ignore SSL errors
-                return True, f"SSL certificate verification skipped for IP address: {url}"
+                # Only skip SSL verification for HTTPS with IP addresses
+                if url.startswith('https://') and self._is_valid_ip(urlparse(url).netloc.split(':')[0]):
+                    return True, f"SSL certificate verification skipped for IP address with HTTPS: {url}"
+                else:
+                    return False, f"SSL cipher error: {error_message}"
             elif error_code == pycurl.E_SSL_CONNECT_FAILED:
-                return False, f"SSL connection failed: {error_message}"
+                # Only skip SSL verification for HTTPS with IP addresses
+                if url.startswith('https://') and self._is_valid_ip(urlparse(url).netloc.split(':')[0]):
+                    return True, f"SSL connection warning for IP address with HTTPS, but continuing anyway."
+                else:
+                    return False, f"SSL connection failed: {error_message}"
             else:
-                return False, f"Connection error ({error_code}): {error_message}"
+                # Only skip other errors for HTTPS with IP addresses
+                if url.startswith('https://') and self._is_valid_ip(urlparse(url).netloc.split(':')[0]):
+                    return True, f"SSL error ignored for IP address with HTTPS: {error_message}"
+                else:
+                    return False, f"SSL error ({error_code}): {error_message}"
         except Exception as e:
             return False, f"Unexpected error during connection to IP address: {str(e)}"
             

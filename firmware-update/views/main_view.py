@@ -1,7 +1,7 @@
 # views/main_view.py
 
 from PySide6.QtWidgets import QDialog, QApplication, QMainWindow, QMessageBox
-from PySide6.QtCore import Slot, Qt
+from PySide6.QtCore import Slot, Qt, QSize
 from PySide6.QtGui import QMovie
 from ui.updatedialog import Ui_UpdateDialog
 
@@ -15,6 +15,7 @@ class MainView(QDialog):
         
         # Initialize loading animation
         self.loading_movie = QMovie("resources/images/loading.gif")
+        self.loading_movie.setScaledSize(QSize(32, 32))
         self.ui.LB_ShowText.setMovie(self.loading_movie)
         
         # Hide LB_ShowText initially
@@ -272,6 +273,9 @@ class MainView(QDialog):
         """Show or hide the loading animation"""
         if show:
             self.ui.LB_ShowText.setVisible(True)
+            if not self.loading_movie.isValid():
+                self.loading_movie.setFileName("resources/images/loading.gif")
+            self.loading_movie.jumpToFrame(0)  # Reset to first frame
             self.loading_movie.start()
         else:
             self.loading_movie.stop()
